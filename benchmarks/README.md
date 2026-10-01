@@ -9,8 +9,9 @@ optimized object code. The fixtures exercise generic iterators, collections and
 graph algorithms, and const-generic numerical kernels. Two additional cases compile
 a consumer containing 64 eight-field `WireRecord` derives: frontend metadata and
 debug object code. Each compiler builds the same procedural-macro source once
-before timing; timed consumer compilations include loading and executing the macro. Object generation excludes
-the external linker. These synthetic workloads do not predict every Cargo build.
+before timing; timed consumer compilations include loading and executing the macro.
+Object generation excludes the external linker. These synthetic workloads do not
+predict every Cargo build.
 
 Build and validate both distributions before benchmarking:
 
@@ -19,7 +20,7 @@ bazel build --features=thin_lto //:upstream_distribution //:static_distribution
 bazel test --features=thin_lto //tests/...
 ```
 
-After both validation tests pass, `//benchmarks:results` runs all measurements in
+After validation passes, `//benchmarks:results` runs all measurements in
 one Linux x86-64 action and writes `bazel-bin/benchmarks/results.json`:
 
 ```sh
@@ -67,7 +68,8 @@ memory improvement.
 
 Record each compiler's actual LTO configuration. If the variants use different
 LTO implementations, the results compare the complete compiler configurations;
-they do not isolate linkage as the cause of a difference. Measurements are checked in only after both distributions pass validation.
+they do not isolate linkage as the cause of a difference. Measurements are checked
+in only after both distributions pass validation.
 
 `static` describes linking Rust compiler code and LLVM into `bin/rustc`.
 The current distribution uses dynamic glibc. It is not a fully static ELF binary.

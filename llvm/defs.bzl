@@ -29,7 +29,7 @@ LLVM_TARGETS = [
     "Xtensa",
 ]
 
-_REQUIRED_COMPONENTS = [
+_COMPONENTS = [
     "ipo",
     "bitreader",
     "bitwriter",
@@ -38,9 +38,7 @@ _REQUIRED_COMPONENTS = [
     "lto",
     "coverage",
     "instrumentation",
-]
-
-_COMPONENTS = _REQUIRED_COMPONENTS + [target.lower() for target in LLVM_TARGETS]
+] + [target.lower() for target in LLVM_TARGETS]
 
 # Replace the cfg output of compiler/rustc_llvm/build.rs. The same components
 # configure LLVM target initialization in Rust and compilation of llvm-wrapper.

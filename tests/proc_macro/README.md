@@ -40,10 +40,12 @@ and caught unwinding.
 Every command, working directory, exit status, environment override, diagnostic,
 and complete stdout/stderr output is recorded in `result.json` under
 `TEST_UNDECLARED_OUTPUTS_DIR`, alongside sources and dep-info files. The report
-also records archive/compiler hashes and macro ELF inspections. Timeouts kill the command's process group and fail the case.
+also records archive/compiler hashes and macro ELF inspections. Timeouts kill the
+command's process group and fail the case.
 Later cases still run after a consumer failure.
 
-Use `--test_arg=--case=dynamic_std` to select one case. The Python runner also
+Use `--test_arg=--case=dynamic_std` to select one case; the runner builds only the
+macro libraries required by the selected cases. The Python runner also
 accepts `--archive`, `--fixtures`, `--output`, `--timeout-seconds`, `--cc`, and
 `--readelf`. The system C linker builds only the temporary test programs; it is
 not an input to the packaged compiler build.

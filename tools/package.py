@@ -42,19 +42,21 @@ def main():
         "rust_lto": "thin" if "thin_lto" in args.feature else "default",
         "llvm_lto": "thin" if "thin_lto" in args.feature else "off",
     }, sort_keys=True, indent=2) + "\n")
-    with args.archive.open("wb") as raw:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
-            with tarfile.open(fileobj=compressed, mode="w") as archive:
-                for entry in sorted(args.directory.rglob("*")):
-                    info = archive.gettarinfo(str(entry), str(entry.relative_to(args.directory)))
-                    info.uid = info.gid = 0
-                    info.uname = info.gname = ""
-                    info.mtime = 0
-                    if entry.is_file():
-                        with entry.open("rb") as content:
-                            archive.addfile(info, content)
-                    else:
-                        archive.addfile(info)
+    with (
+        args.archive.open("wb") as raw,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed,
+        tarfile.open(fileobj=compressed, mode="w") as archive,
+    ):
+        for entry in sorted(args.directory.rglob("*")):
+            info = archive.gettarinfo(str(entry), str(entry.relative_to(args.directory)))
+            info.uid = info.gid = 0
+            info.uname = info.gname = ""
+            info.mtime = 0
+            if entry.is_file():
+                with entry.open("rb") as content:
+                    archive.addfile(info, content)
+            else:
+                archive.addfile(info)
 
 
 if __name__ == "__main__":

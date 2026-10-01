@@ -119,7 +119,6 @@ def _rustc_main(name, kwargs):
     # distributions use the unmodified main.rs and its rustc_driver dependency.
     rust_binary(
         name = "rustc",
-        binary_name = "rustc",
         crate_name = "rustc_main",
         crate_root = kwargs["binaries"]["rustc-main"],
         srcs = native.glob(["**/*.rs"], allow_empty = True),
@@ -168,7 +167,6 @@ def rust_crate(name, **kwargs):
     else:
         if name == "rustc_llvm":
             rustc_llvm_native(name = "llvm-wrapper")
-            kwargs["build_script"] = None
             kwargs["deps"] = kwargs["deps"] + [":llvm-wrapper"]
             kwargs["rustc_flags"] = kwargs["rustc_flags"] + LLVM_RUSTC_FLAGS
         _rust_crate(name = name, **kwargs)

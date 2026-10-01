@@ -45,17 +45,14 @@ CASES = {
         "description": "Cached derive expansion produces correct binaries across initial, unchanged, and source-changed incremental compilations.",
     },
     "constructor_tls": {
-        "macro_fixture": "constructor_macros.rs",
         "macro_crate": "constructor_macros",
         "description": "A DSO constructor's thread-local state remains alive and available to default same-thread macro expansion.",
     },
     "lazy_binding": {
-        "macro_fixture": "lazy_binding_macros.rs",
         "macro_crate": "lazy_binding_macros",
         "description": "An unused exported macro has an unresolved native PLT call, while another macro expands successfully under lazy binding.",
     },
     "dynamic_std": {
-        "macro_fixture": "dynamic_std_macros.rs",
         "macro_crate": "dynamic_std_macros",
         "description": "A macro linked with shared libstd exercises tokens, spans, allocation, TLS destructors, threads, and caught unwinding using inherited LD_LIBRARY_PATH.",
     },
@@ -149,7 +146,7 @@ class Recorder:
             process = subprocess.Popen(
                 command, cwd=cwd, env=environment,
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding="utf-8", errors="replace", start_new_session=True,
+                encoding="utf-8", errors="replace", start_new_session=True,
             )
             try:
                 stdout, stderr = process.communicate(timeout=timeout)
@@ -203,13 +200,12 @@ def run_cases(args, recorder, scratch):
                                    "bytes": compiler.stat().st_size}
     compile_cwd = scratch / "compilation cwd"
     compile_cwd.mkdir()
-    fixture_source = args.fixtures
     saved_sources = recorder.output / "sources"
     saved_sources.mkdir()
-    fixture_names = ["integration_macros.rs"] + [name + ".rs" for name in args.case]
-    fixture_names.extend(CASES[name]["macro_fixture"] for name in args.case if "macro_fixture" in CASES[name])
-    for filename in fixture_names:
-        source = fixture_source / filename
+    macro_crates = {CASES[name].get("macro_crate", "integration_macros") for name in args.case}
+    fixture_names = {name + ".rs" for name in [*args.case, *macro_crates]}
+    for filename in sorted(fixture_names):
+        source = args.fixtures / filename
         require(source.is_file(), "Fixture does not exist: %s" % source)
         shutil.copyfile(source, compile_cwd / filename)
         shutil.copyfile(source, saved_sources / filename)
@@ -224,12 +220,13 @@ def run_cases(args, recorder, scratch):
     common = [compiler, "--edition=2024", "--sysroot", distribution,
               "-Copt-level=0", "-Clinker=" + cc, "-Ctarget-feature=-crt-static"]
     library = compile_cwd / "libintegration_macros.so"
-    macro_compile = recorder.run("compile-proc-macros", [
-        *common, compile_cwd / "integration_macros.rs", "--crate-name=integration_macros",
-        "--crate-type=proc-macro", "-o", library,
-    ], compile_cwd)
-    require(command_succeeded(macro_compile), "Procedural-macro fixture compilation failed")
-    recorder.report["proc_macro_library"] = {"sha256": sha256(library), "bytes": library.stat().st_size}
+    if "integration_macros" in macro_crates:
+        macro_compile = recorder.run("compile-proc-macros", [
+            *common, compile_cwd / "integration_macros.rs", "--crate-name=integration_macros",
+            "--crate-type=proc-macro", "-o", library,
+        ], compile_cwd)
+        require(command_succeeded(macro_compile), "Procedural-macro fixture compilation failed")
+        recorder.report["proc_macro_library"] = {"sha256": sha256(library), "bytes": library.stat().st_size}
 
     for name in args.case:
         specification = CASES[name]
@@ -240,10 +237,11 @@ def run_cases(args, recorder, scratch):
             case_library = library
             macro_crate = "integration_macros"
             consumer_environment = None
-            if "macro_fixture" in specification:
+            if "macro_crate" in specification:
                 macro_crate = specification["macro_crate"]
+                case["macro_fixture"] = macro_crate + ".rs"
                 case_library = compile_cwd / ("lib" + macro_crate + ".so")
-                macro_command = [*common, compile_cwd / specification["macro_fixture"],
+                macro_command = [*common, compile_cwd / case["macro_fixture"],
                                  "--crate-name=" + macro_crate, "--crate-type=proc-macro",
                                  "-o", case_library]
                 if name == "lazy_binding":

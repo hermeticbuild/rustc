@@ -184,6 +184,8 @@ def prepare_proc_macro_libraries(directories, source, work, env, linker, report,
     linker_version = subprocess.run(
         [linker_path, "--version"], env=env, capture_output=True, text=True, timeout=30, check=True
     ).stdout.strip()
+    source_hash = sha256(source)
+    linker_info = {"path": linker_path, "sha256": sha256(Path(linker_path)), "version": linker_version}
     libraries = {}
     for variant in VARIANTS:
         directory = work / variant
@@ -201,10 +203,10 @@ def prepare_proc_macro_libraries(directories, source, work, env, linker, report,
         preparation = {
             "kind": "proc_macro_library", "variant": variant,
             "timed": False, "command": command, "returncode": completed.returncode,
-            "source": str(source), "source_sha256": sha256(source),
+            "source": str(source), "source_sha256": source_hash,
             "stdout": completed.stdout, "stderr": completed.stderr,
             "compiler_binary_sha256": report["compilers"][variant]["binary_sha256"],
-            "linker": {"path": linker_path, "sha256": sha256(Path(linker_path)), "version": linker_version},
+            "linker": linker_info,
         }
         if completed.returncode == 0:
             preparation["library"] = {
@@ -253,22 +255,22 @@ def main():
     descriptions = {"upstream": args.upstream_build_description, "static": args.static_build_description}
     compilers = {variant: compiler_info(directories[variant], env, descriptions[variant]) for variant in VARIANTS}
     for variant, compiler in compilers.items():
-        if compiler["version_fields"].get("commit-hash") != args.expected_commit:
+        if not args.expected_commit or compiler["version_fields"].get("commit-hash") != args.expected_commit:
             parser.error(f"{variant} does not report expected commit {args.expected_commit}")
         manifest = compiler["manifest"]
         for field, expected in (
             ("variant", variant), ("rust_commit", args.expected_commit),
             ("llvm_commit", args.expected_llvm_commit),
         ):
-            if manifest.get(field) != expected:
+            if not manifest.get(field) or manifest[field] != expected:
                 parser.error(f"{variant} manifest {field} is {manifest.get(field)!r}; expected {expected!r}")
         if manifest.get("host") != compiler["version_fields"].get("host"):
             parser.error(f"{variant} manifest host disagrees with rustc -vV")
-    for key in ("commit-hash", "host", "release", "LLVM version"):
+    for key in ("host", "release", "LLVM version"):
         values = [compilers[variant]["version_fields"].get(key) for variant in VARIANTS]
         if not all(values) or values[0] != values[1]:
             parser.error(f"Compiler {key} fields differ or are missing: {values}")
-    for key in ("rust_commit", "llvm_commit", "host", "bootstrap", "stdlib", "allocator", "glibc"):
+    for key in ("bootstrap", "stdlib", "allocator", "glibc"):
         values = [compilers[variant]["manifest"].get(key) for variant in VARIANTS]
         if not all(values) or values[0] != values[1]:
             parser.error(f"Distribution manifest {key} fields differ or are missing: {values}")
@@ -282,11 +284,12 @@ def main():
         "optimized": (["--emit=obj", "-C", "opt-level=2", "-C", "debuginfo=0", "-C", "codegen-units=1"], ".o"),
     }
     for source in fixtures:
+        source_hash = sha256(source)
         for configuration, (flags, extension) in configurations.items():
             workloads.append({
                 "name": f"{source.stem}/{configuration}",
                 "source": str(source),
-                "source_sha256": sha256(source),
+                "source_sha256": source_hash,
                 "flags": ["--crate-type=lib", "--edition=2024", "--crate-name", source.stem, *flags],
                 "extension": extension,
             })
@@ -296,26 +299,24 @@ def main():
     for source in (macro_source, macro_consumer):
         if not source.is_file():
             parser.error(f"Missing procedural-macro fixture: {source}")
+    macro_source_hash = sha256(macro_source)
+    macro_consumer_hash = sha256(macro_consumer)
     for configuration in ("frontend", "debug"):
         flags, extension = configurations[configuration]
         workloads.append({
             "name": f"proc_macro_records/{configuration}",
-            "source": str(macro_consumer), "source_sha256": sha256(macro_consumer),
+            "source": str(macro_consumer), "source_sha256": macro_consumer_hash,
             "flags": ["--crate-type=lib", "--edition=2024", "--crate-name=proc_macro_records", *flags],
             "extension": extension, "proc_macro": "record_derive",
-            "macro_source": str(macro_source), "macro_source_sha256": sha256(macro_source),
+            "macro_source": str(macro_source), "macro_source_sha256": macro_source_hash,
             "derive_invocations": 64, "fields_per_record": 8,
         })
     if args.workload is not None:
         selected_names = set(args.workload)
-        if not selected_names or "" in selected_names:
-            parser.error("Workload selection must contain nonempty exact names")
         unknown = sorted(selected_names - {workload["name"] for workload in workloads})
         if unknown:
             parser.error(f"Unknown workloads: {unknown}")
         workloads = [workload for workload in workloads if workload["name"] in selected_names]
-    if not workloads:
-        parser.error("No workloads selected")
     requires_proc_macro = any(workload.get("proc_macro") for workload in workloads)
     report = {
         "schema_version": 1,
