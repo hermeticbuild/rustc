@@ -1,5 +1,8 @@
 # Compiler benchmarks
 
+The [2026-10-01 ThinLTO results](results/README.md) include the measured timings,
+compiler sizes, and raw measurements for the initial two distributions.
+
 `compare.py` measures compiler startup and three compilation configurations for
 each self-contained Rust fixture: frontend metadata, debug object code, and
 optimized object code. The fixtures exercise generic iterators, collections and

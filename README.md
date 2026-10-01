@@ -21,6 +21,10 @@ The archives are `bazel-bin/upstream_distribution.tar.gz` and `bazel-bin/static_
 
 Both archives contain `lib/rustlib/x86_64-unknown-linux-gnu/lib`, licenses, and `manifest.json`. A system C linker is required for producing executables, as with a Rust installation using the default system linker.
 
+The compiler and LLVM are built from source; the bootstrap compiler and packaged standard library are downloaded binaries from the matching nightly. This build does not yet rebuild the standard library or perform a second self-hosted compiler stage.
+
+Fully static glibc is not supported by these artifacts. A separate glibc 2.36 experiment could load a Rust shared library and allocate memory, but accessing the shared library's TLS crashed: `__tls_get_addr` returned null. The same library passed all ten allocation, TLS, thread, and panic-recovery cases when the host used dynamic glibc. Procedural macros require these operations, so `static_archive` retains dynamic glibc.
+
 `//:rustc` builds the compiler alone. Select `--config=upstream` or `--config=static` for that target. The archive targets select their own compiler variant.
 
 `--features=thin_lto` enables native LLVM ThinLTO and Rust ThinLTO. Both final compiler links run through rustc, preserving the Rust metadata required by `rustc_driver`. The upstream driver uses `-Zdylib-lto`; the LLVM shared library remains a separate optimization unit.
@@ -41,3 +45,5 @@ The remote configuration disables local action fallback. Downloading sources and
 Distribution tests relocate each compiler and check its reported version, ELF dependencies, executable compilation, test harnesses, procedural macros, and LLVM output. Run the benchmark script on one Linux machine with both distributions to compare compiler execution. The benchmark records individual measurements and alternates the order of the variants; build scheduling is not included in compiler timings.
 
 See `benchmarks/README.md` for the benchmark command and output fields. Benchmark results are published only after both distributions pass validation.
+
+The [initial ThinLTO measurements](benchmarks/results/README.md) favored the monolithic compiler for startup, frontend work, and most code-generation workloads. The optimized generic-pipeline comparison was inconclusive. The report includes raw measurements and the limits of the comparison.
