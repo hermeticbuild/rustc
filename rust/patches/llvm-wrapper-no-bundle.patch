@@ -1,0 +1,24 @@
+diff --git a/src/compiler/rustc_codegen_llvm/src/llvm/ffi.rs b/src/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
+--- a/src/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
++++ b/src/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
+@@ -1963,7 +1963,7 @@
+     ) -> &'ll Metadata;
+ }
+ 
+-#[link(name = "llvm-wrapper", kind = "static")]
++#[link(name = "llvm-wrapper", kind = "static", modifiers = "-bundle")]
+ unsafe extern "C" {
+     pub(crate) fn LLVMRustInstallErrorHandlers();
+     pub(crate) fn LLVMRustDisableSystemDialogsOnCrash();
+diff --git a/src/compiler/rustc_codegen_llvm/src/llvm/enzyme_ffi.rs b/src/compiler/rustc_codegen_llvm/src/llvm/enzyme_ffi.rs
+--- a/src/compiler/rustc_codegen_llvm/src/llvm/enzyme_ffi.rs
++++ b/src/compiler/rustc_codegen_llvm/src/llvm/enzyme_ffi.rs
+@@ -33,7 +33,7 @@
+     pub(crate) inner: CTypeTreeRef,
+ }
+ 
+-#[link(name = "llvm-wrapper", kind = "static")]
++#[link(name = "llvm-wrapper", kind = "static", modifiers = "-bundle")]
+ unsafe extern "C" {
+     // Enzyme
+     pub(crate) safe fn LLVMRustHasMetadata(I: &Value, KindID: MetadataKindId) -> bool;

@@ -1,0 +1,33 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "validate_distribution",
+    srcs = ["validate_distribution.py"],
+    main = "validate_distribution.py",
+)
+
+[
+    py_test(
+        name = variant + "_distribution_test",
+        size = "medium",
+        srcs = ["validate_distribution.py"],
+        args = [
+            "--distribution",
+            "$(location //:" + variant + "_distribution)",
+            "--variant",
+            variant,
+        ],
+        data = ["//:" + variant + "_distribution"],
+        main = "validate_distribution.py",
+        target_compatible_with = [
+            "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+    )
+    for variant in [
+        "upstream",
+        "static",
+    ]
+]

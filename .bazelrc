@@ -1,0 +1,32 @@
+common --check_direct_dependencies=off
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
+common --repo_env=BAZEL_DO_NOT_DETECT_SWIFT_TOOLCHAIN=1
+common --experimental_cc_static_library
+common --@rules_rust//rust/toolchain/channel=nightly
+common --incompatible_strict_action_env
+common --test_output=errors
+common --nobuild_runfile_links
+common --@rules_cc//cc/toolchains/args/archiver_flags:use_libtool_on_macos=False
+
+build --platforms=//:linux_x86_64
+build -c opt
+build --strip=never
+build --features=no_exceptions
+build --features=no_rtti
+build --remote_download_outputs=toplevel
+
+build:upstream --//:linkage=upstream
+build:static --//:linkage=static
+build:thin_lto --features=thin_lto
+
+build:remote --remote_executor=grpcs://remote.buildbuddy.io
+build:remote --remote_cache=grpcs://remote.buildbuddy.io
+build:remote --remote_timeout=3600
+build:remote --remote_cache_compression
+build:remote --extra_execution_platforms=//:linux_x86_64
+build:remote --jobs=100
+build:remote --spawn_strategy=remote
+build:remote --noremote_local_fallback
+
+try-import %workspace%/.bazelrc.user

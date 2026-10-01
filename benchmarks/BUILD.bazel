@@ -1,0 +1,19 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load(":defs.bzl", "compiler_benchmark")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "compare",
+    srcs = ["compare.py"],
+    data = glob(["fixtures/*.rs"]),
+    main = "compare.py",
+)
+
+compiler_benchmark(
+    name = "results",
+    fixtures = glob(["fixtures/*.rs"]),
+    static = "//:static_distribution",
+    tags = ["manual"],
+    upstream = "//:upstream_distribution",
+)

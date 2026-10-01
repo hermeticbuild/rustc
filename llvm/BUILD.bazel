@@ -1,0 +1,5 @@
+load(":defs.bzl", "rustc_llvm_libraries")
+
+exports_files(["defs.bzl"])
+
+rustc_llvm_libraries()

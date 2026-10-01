@@ -1,0 +1,54 @@
+diff --git a/rust/private/rust.bzl b/rust/private/rust.bzl
+--- a/rust/private/rust.bzl
++++ b/rust/private/rust.bzl
+@@ -1179,10 +1179,26 @@
+         """),
+ )
+ 
++_CC_RUNTIME_LINKAGE_ATTRS = {
++    "cc_runtime_linkage": attr.string(
++        doc = dedent("""\
++            Controls how the C++ runtime (libstdc++/libc++ and the unwinder) is
++            linked into this shared library:
++
++            - `dynamic` (default): link the C++ runtime dynamically (historical
++              behavior).
++            - `static`: embed the C++ runtime so the library has no external
++              libstdc++/libc++/libunwind dependency (a self-contained `.so`).
++            """),
++        values = ["dynamic", "static"],
++        default = "dynamic",
++    ),
++}
++
+ rust_dylib_library = rule(
+     implementation = _rust_dylib_library_impl,
+     provides = COMMON_PROVIDERS,
+-    attrs = _COMMON_ATTRS | {
++    attrs = _COMMON_ATTRS | _CC_RUNTIME_LINKAGE_ATTRS | {
+         "disable_pipelining": attr.bool(
+             default = False,
+             doc = dedent("""\
+@@ -1311,22 +1327,6 @@
+         _PER_CRATE_FLAG_SETTING,
+     ],
+ )
+-
+-_CC_RUNTIME_LINKAGE_ATTRS = {
+-    "cc_runtime_linkage": attr.string(
+-        doc = dedent("""\
+-            Controls how the C++ runtime (libstdc++/libc++ and the unwinder) is
+-            linked into this shared library:
+-
+-            - `dynamic` (default): link the C++ runtime dynamically (historical
+-              behavior).
+-            - `static`: embed the C++ runtime so the library has no external
+-              libstdc++/libc++/libunwind dependency (a self-contained `.so`).
+-            """),
+-        values = ["dynamic", "static"],
+-        default = "dynamic",
+-    ),
+-}
+ 
+ rust_cdylib_library = rule(
+     implementation = _rust_cdylib_library_impl,

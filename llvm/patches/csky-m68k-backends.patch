@@ -1,0 +1,144 @@
+Add the CSKY and M68k targets enabled by Rust nightly to the LLVM Bazel build.
+Declare CodeGen for CSKYAsmParser's llvm/CodeGen/Register.h include.
+
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2368,6 +2368,130 @@
+ 
+ llvm_target_lib_list = [lib for lib in [
+     {
++        "name": "CSKY",
++        "short_name": "CSKY",
++        "tbl_outs": [
++            (
++                ["-gen-asm-matcher"],
++                "lib/Target/CSKY/CSKYGenAsmMatcher.inc",
++            ),
++            (
++                ["-gen-asm-writer"],
++                "lib/Target/CSKY/CSKYGenAsmWriter.inc",
++            ),
++            (
++                ["-gen-callingconv"],
++                "lib/Target/CSKY/CSKYGenCallingConv.inc",
++            ),
++            (
++                ["-gen-compress-inst-emitter"],
++                "lib/Target/CSKY/CSKYGenCompressInstEmitter.inc",
++            ),
++            (
++                ["-gen-dag-isel"],
++                "lib/Target/CSKY/CSKYGenDAGISel.inc",
++            ),
++            (
++                ["-gen-disassembler"],
++                "lib/Target/CSKY/CSKYGenDisassemblerTables.inc",
++            ),
++            (
++                ["-gen-instr-info"],
++                "lib/Target/CSKY/CSKYGenInstrInfo.inc",
++            ),
++            (
++                ["-gen-emitter"],
++                "lib/Target/CSKY/CSKYGenMCCodeEmitter.inc",
++            ),
++            (
++                ["-gen-pseudo-lowering"],
++                "lib/Target/CSKY/CSKYGenMCPseudoLowering.inc",
++            ),
++            (
++                ["-gen-sd-node-info"],
++                "lib/Target/CSKY/CSKYGenSDNodeInfo.inc",
++            ),
++            (
++                ["-gen-subtarget"],
++                "lib/Target/CSKY/CSKYGenSubtargetInfo.inc",
++            ),
++            (
++                ["-gen-register-info"],
++                [
++                    "lib/Target/CSKY/CSKYGenRegisterInfo.inc",
++                    "lib/Target/CSKY/CSKYGenRegisterInfoEnums.inc",
++                    "lib/Target/CSKY/CSKYGenRegisterInfoMCDesc.inc",
++                    "lib/Target/CSKY/CSKYGenRegisterInfoHeader.inc",
++                    "lib/Target/CSKY/CSKYGenRegisterInfoTargetDesc.inc",
++                ],
++            ),
++        ],
++    },
++    {
++        "name": "M68k",
++        "short_name": "M68k",
++        "tbl_outs": [
++            (
++                ["-gen-asm-matcher"],
++                "lib/Target/M68k/M68kGenAsmMatcher.inc",
++            ),
++            (
++                ["-gen-asm-writer"],
++                "lib/Target/M68k/M68kGenAsmWriter.inc",
++            ),
++            (
++                ["-gen-callingconv"],
++                "lib/Target/M68k/M68kGenCallingConv.inc",
++            ),
++            (
++                ["-gen-dag-isel"],
++                "lib/Target/M68k/M68kGenDAGISel.inc",
++            ),
++            (
++                ["-gen-disassembler"],
++                "lib/Target/M68k/M68kGenDisassemblerTables.inc",
++            ),
++            (
++                ["-gen-instr-info"],
++                "lib/Target/M68k/M68kGenInstrInfo.inc",
++            ),
++            (
++                ["-gen-emitter"],
++                "lib/Target/M68k/M68kGenMCCodeEmitter.inc",
++            ),
++            (
++                ["-gen-pseudo-lowering"],
++                "lib/Target/M68k/M68kGenMCPseudoLowering.inc",
++            ),
++            (
++                ["-gen-sd-node-info"],
++                "lib/Target/M68k/M68kGenSDNodeInfo.inc",
++            ),
++            (
++                ["-gen-subtarget"],
++                "lib/Target/M68k/M68kGenSubtargetInfo.inc",
++            ),
++            (
++                ["-gen-global-isel"],
++                "lib/Target/M68k/M68kGenGlobalISel.inc",
++            ),
++            (
++                ["-gen-register-bank"],
++                "lib/Target/M68k/M68kGenRegisterBank.inc",
++            ),
++            (
++                ["-gen-register-info"],
++                [
++                    "lib/Target/M68k/M68kGenRegisterInfo.inc",
++                    "lib/Target/M68k/M68kGenRegisterInfoEnums.inc",
++                    "lib/Target/M68k/M68kGenRegisterInfoMCDesc.inc",
++                    "lib/Target/M68k/M68kGenRegisterInfoHeader.inc",
++                    "lib/Target/M68k/M68kGenRegisterInfoTargetDesc.inc",
++                ],
++            ),
++        ],
++    },
++    {
+         "name": "AArch64",
+         "short_name": "AArch64",
+         "tbl_outs": [
+@@ -4020,6 +4144,7 @@
+         features = ["-parse_headers"],
+         deps = [
+             ":BinaryFormat",
++            ":CodeGen",
+             ":CodeGenTypes",
+             ":MC",
+             ":MCParser",

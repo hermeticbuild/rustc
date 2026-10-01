@@ -1,0 +1,114 @@
+module(
+    name = "rustc",
+    version = "0.0.0",
+    bazel_compatibility = [">=9.1.1"],
+)
+
+bazel_dep(name = "bazel_lib", version = "3.2.2")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "llvm", version = "0.8.18")
+bazel_dep(name = "package_metadata", version = "0.0.7")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "rules_python", version = "1.8.0")
+bazel_dep(name = "rules_rs", version = "0.0.0")
+bazel_dep(name = "rules_shell", version = "0.8.0")
+bazel_dep(name = "tar.bzl", version = "0.10.5")
+
+# Header checks apply to source compilation, not shared ThinLTO backend actions.
+single_version_override(
+    module_name = "rules_cc",
+    patch_strip = 1,
+    patches = ["//llvm/patches:rules-cc-layering-check-source-actions.patch"],
+    version = "0.2.25",
+)
+
+# The compiler generator uses the same Cargo graph helpers as rules_rs's stdlib.
+archive_override(
+    module_name = "rules_rs",
+    integrity = "sha256-dsNZkPGk4nqNoQqVbOFx7IDat/Se2CUi3BrRb3cJuRs=",
+    strip_prefix = "rules_rs-7284f77d680b935510b3557254d81c0f2738a13c",
+    urls = ["https://github.com/hermeticbuild/rules_rs/archive/7284f77d680b935510b3557254d81c0f2738a13c.tar.gz"],
+)
+
+archive_override(
+    module_name = "llvm",
+    integrity = "sha256-ZyoJuCiJLBdRTBn9UZ+rFmdGRgrbnoR0cN8EIg1YC5Q=",
+    strip_prefix = "hermetic-llvm-6adb3b4dc05b053f5df978dd08e427286f619fd6",
+    urls = ["https://github.com/hermeticbuild/hermetic-llvm/archive/6adb3b4dc05b053f5df978dd08e427286f619fd6.tar.gz"],
+)
+
+rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+rules_rust.patch(
+    patches = ["//rust/patches:dylib-cc-runtime-linkage.patch"],
+    strip = 1,
+)
+use_repo(rules_rust, "rules_rust")
+
+bootstrap = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+bootstrap.toolchain(
+    name = "bootstrap_rust_toolchains",
+    # Bootstrap applies this flag to build scripts and proc macros as well.
+    extra_exec_rustc_flags = {
+        "aarch64-apple-darwin": ["-Zforce-unstable-if-unmarked"],
+        "aarch64-unknown-linux-gnu": ["-Zforce-unstable-if-unmarked"],
+        "x86_64-apple-darwin": ["-Zforce-unstable-if-unmarked"],
+        "x86_64-unknown-linux-gnu": ["-Zforce-unstable-if-unmarked"],
+    },
+    use_rust_redist = False,
+    version = "nightly/2026-10-01",
+)
+use_repo(
+    bootstrap,
+    "bootstrap_rust_toolchains",
+    "cargo_linux_aarch64_nightly_2026_10_01",
+    "cargo_linux_x86_64_nightly_2026_10_01",
+    "cargo_macos_aarch64_nightly_2026_10_01",
+    "cargo_macos_x86_64_nightly_2026_10_01",
+    "rust_stdlib_x86_64_unknown_linux_gnu_nightly_2026_10_01",
+    "rustc_linux_aarch64_nightly_2026_10_01",
+    "rustc_linux_x86_64_nightly_2026_10_01",
+    "rustc_macos_aarch64_nightly_2026_10_01",
+    "rustc_macos_x86_64_nightly_2026_10_01",
+)
+
+register_toolchains("@bootstrap_rust_toolchains//...")
+
+register_toolchains("@llvm//toolchain:all")
+
+# This is Rust's LLVM fork at the gitlink in Rust commit 21b707e3f97e.
+llvm = use_extension("@llvm//extensions:llvm.bzl", "llvm")
+llvm.version(llvm_version = "23.1.1")
+llvm.from_archive(
+    patch_args = ["-p1"],
+    patches = ["//llvm/patches:csky-m68k-backends.patch"],
+    sha256 = "c513d3e650087e77e2917c3470d08dfc10fe37470c35e59aa6cba0946dcb04f1",
+    strip_prefix = "llvm-project-1b9c0d5ff9bbe7634aead059efe6b11a7eeba145",
+    urls = ["https://github.com/rust-lang/llvm-project/archive/1b9c0d5ff9bbe7634aead059efe6b11a7eeba145.tar.gz"],
+)
+llvm.configure(targets = [
+    "AArch64",
+    "AMDGPU",
+    "ARM",
+    "AVR",
+    "BPF",
+    "CSKY",
+    "Hexagon",
+    "LoongArch",
+    "M68k",
+    "MSP430",
+    "Mips",
+    "NVPTX",
+    "PowerPC",
+    "RISCV",
+    "Sparc",
+    "SystemZ",
+    "WebAssembly",
+    "X86",
+    "Xtensa",
+])
+use_repo(llvm, "llvm-project")
+
+rustc = use_extension("//rust:extensions.bzl", "rustc")
+rustc.source(name = "rustc_sources")
+use_repo(rustc, "rustc_sources")
