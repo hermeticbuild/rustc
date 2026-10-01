@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import platform
 import random
+import shutil
 import signal
 import statistics
 import subprocess
@@ -174,6 +175,52 @@ def write_json(path, report):
     temporary.replace(path)
 
 
+def prepare_proc_macro_libraries(directories, source, work, env, linker, report, output):
+    """Build each compiler's macro DSO before the timed consumer compilations."""
+    linker_path = shutil.which(linker, path=env.get("PATH"))
+    if linker_path is None:
+        raise RuntimeError(f"Procedural-macro preparation requires a C linker: {linker}")
+    linker_path = str(Path(linker_path).resolve())
+    linker_version = subprocess.run(
+        [linker_path, "--version"], env=env, capture_output=True, text=True, timeout=30, check=True
+    ).stdout.strip()
+    libraries = {}
+    for variant in VARIANTS:
+        directory = work / variant
+        directory.mkdir()
+        library = directory / "librecord_derive.so"
+        command = [
+            str(directories[variant] / "bin/rustc"), str(source),
+            "--crate-name=record_derive", "--crate-type=proc-macro", "--edition=2024",
+            "-Copt-level=2", "-Cdebuginfo=0", "-Ccodegen-units=1",
+            "-Ctarget-feature=-crt-static", "-Clinker=" + linker_path, "-o", str(library),
+        ]
+        completed = subprocess.run(
+            command, cwd=work, env=env, capture_output=True, text=True, timeout=300, check=False
+        )
+        preparation = {
+            "kind": "proc_macro_library", "variant": variant,
+            "timed": False, "command": command, "returncode": completed.returncode,
+            "source": str(source), "source_sha256": sha256(source),
+            "stdout": completed.stdout, "stderr": completed.stderr,
+            "compiler_binary_sha256": report["compilers"][variant]["binary_sha256"],
+            "linker": {"path": linker_path, "sha256": sha256(Path(linker_path)), "version": linker_version},
+        }
+        if completed.returncode == 0:
+            preparation["library"] = {
+                "path": str(library), "sha256": sha256(library), "bytes": library.stat().st_size,
+            }
+        report["preparations"].append(preparation)
+        write_json(output, report)
+        if completed.returncode:
+            raise RuntimeError(
+                f"Procedural-macro library compilation failed for {variant}: {command}"
+                f"\n{completed.stdout}{completed.stderr}"
+            )
+        libraries[variant] = library
+    return libraries
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream-dir", required=True, type=Path)
@@ -181,11 +228,20 @@ def main():
     parser.add_argument("--output", required=True, type=Path, help="JSON report, updated after each invocation")
     parser.add_argument("--runs", type=int, default=15, help="Measured pairs per workload; minimum 3")
     parser.add_argument("--warmups", type=int, default=2, help="Unmeasured pairs per workload; minimum 1")
+    parser.add_argument(
+        "--workload", action="append", metavar="NAME",
+        help="Select an exact workload name; repeat to select more; omitted means all workloads",
+    )
     parser.add_argument("--expected-commit", default=EXPECTED_COMMIT)
     parser.add_argument("--expected-llvm-commit", default=EXPECTED_LLVM_COMMIT)
     parser.add_argument("--upstream-build-description", default="unreported")
     parser.add_argument("--static-build-description", default="unreported")
     parser.add_argument("--fixtures", type=Path, default=Path(__file__).resolve().parent / "fixtures")
+    parser.add_argument(
+        "--proc-macro-fixtures", type=Path,
+        default=Path(__file__).resolve().parent / "proc_macro_fixtures",
+    )
+    parser.add_argument("--proc-macro-linker", default="cc", help="C linker used only for untimed macro DSO preparation")
     parser.add_argument("--work-dir", type=Path, help="Parent directory for temporary compiler outputs")
     args = parser.parse_args()
     if sys.platform != "linux":
@@ -234,6 +290,33 @@ def main():
                 "flags": ["--crate-type=lib", "--edition=2024", "--crate-name", source.stem, *flags],
                 "extension": extension,
             })
+    macro_directory = args.proc_macro_fixtures.resolve()
+    macro_source = macro_directory / "record_derive.rs"
+    macro_consumer = macro_directory / "proc_macro_records.rs"
+    for source in (macro_source, macro_consumer):
+        if not source.is_file():
+            parser.error(f"Missing procedural-macro fixture: {source}")
+    for configuration in ("frontend", "debug"):
+        flags, extension = configurations[configuration]
+        workloads.append({
+            "name": f"proc_macro_records/{configuration}",
+            "source": str(macro_consumer), "source_sha256": sha256(macro_consumer),
+            "flags": ["--crate-type=lib", "--edition=2024", "--crate-name=proc_macro_records", *flags],
+            "extension": extension, "proc_macro": "record_derive",
+            "macro_source": str(macro_source), "macro_source_sha256": sha256(macro_source),
+            "derive_invocations": 64, "fields_per_record": 8,
+        })
+    if args.workload is not None:
+        selected_names = set(args.workload)
+        if not selected_names or "" in selected_names:
+            parser.error("Workload selection must contain nonempty exact names")
+        unknown = sorted(selected_names - {workload["name"] for workload in workloads})
+        if unknown:
+            parser.error(f"Unknown workloads: {unknown}")
+        workloads = [workload for workload in workloads if workload["name"] in selected_names]
+    if not workloads:
+        parser.error("No workloads selected")
+    requires_proc_macro = any(workload.get("proc_macro") for workload in workloads)
     report = {
         "schema_version": 1,
         "status": "running",
@@ -242,6 +325,10 @@ def main():
         "compilers": compilers,
         "runs": args.runs,
         "warmups": args.warmups,
+        "workload_selection": {
+            "requested": args.workload,
+            "selected": [workload["name"] for workload in workloads],
+        },
         "method": {
             "order": "AB/BA alternating paired measurements, balanced starting variant across workloads",
             "clock": "time.perf_counter_ns around Popen and wait4, including process startup",
@@ -250,15 +337,21 @@ def main():
             "compiler_environment": "LD_*, DYLD_*, RUST*, and CARGO* variables removed; LC_ALL=C",
             "speedup": "upstream elapsed / static elapsed; values above 1 favor static",
             "interval": "4000 deterministic bootstrap resamples of paired speedup medians; exploratory 95% interval",
-            "scope": "synthetic compile-only workloads, without an external linker; results compare complete compiler builds",
+            "scope": "timed synthetic compile-only workloads, without an external linker; results compare complete compiler builds",
         },
         "warnings": [
             "The confidence intervals do not correct for multiple workloads or prove performance on other programs.",
             "Different compiler LTO configurations prevent attributing a difference exclusively to linkage.",
         ],
         "workloads": workloads,
+        "preparations": [],
         "samples": [],
     }
+    if requires_proc_macro:
+        report["method"].update({
+            "proc_macros": "64 eight-field WireRecord derives per consumer compilation; each compiler builds the identical macro source once before timing; the consumer compilation includes macro loading, macro execution and compiler callbacks",
+            "preparation": "Macro DSO compilation and its external C linker run are excluded from all samples; macro DSOs remain available for every warmup and measured invocation",
+        })
     if args.runs < 10:
         report["warnings"].append("Fewer than 10 measured pairs: treat speedups and confidence intervals as preliminary.")
     if any(description == "unreported" for description in descriptions.values()):
@@ -271,6 +364,11 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="rustc-benchmark-", dir=args.work_dir) as temporary:
             work = Path(temporary)
+            macro_libraries = {}
+            if requires_proc_macro:
+                macro_libraries = prepare_proc_macro_libraries(
+                    directories, macro_source, work, env, args.proc_macro_linker, report, output
+                )
             for workload_index, workload in enumerate(workloads):
                 destination = work / ("output" + (workload["extension"] or ""))
                 print(f"{workload['name']}: {args.warmups} warmup pairs, {args.runs} measured pairs", flush=True)
@@ -282,6 +380,8 @@ def main():
                             command = [str(directories[variant] / "bin/rustc")]
                             if workload["source"]:
                                 command += [workload["source"], *workload["flags"], "-o", str(destination)]
+                                if workload.get("proc_macro"):
+                                    command += ["--extern", "record_derive=" + str(macro_libraries[variant])]
                             else:
                                 command += workload["flags"]
                             measurement = measure(command, cwd=work, env=env)

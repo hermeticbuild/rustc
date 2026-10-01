@@ -19,8 +19,9 @@ def _distribution_impl(ctx):
     args.add("--archive", archive)
     args.add("--variant", ctx.attr.variant)
     args.add_all(ctx.features, before_each = "--feature")
-    inputs = []
-    destinations = {}
+    args.add("--source-metadata", ctx.file.source_metadata)
+    inputs = [ctx.file.source_metadata]
+    destinations = set()
     groups = [
         ("bin", ctx.files.compiler),
         ("lib", ctx.files.driver),
@@ -29,6 +30,10 @@ def _distribution_impl(ctx):
     llvm_files = ctx.files.llvm if ctx.attr.variant == "upstream" else []
     if llvm_files:
         groups.append(("lib", llvm_files))
+    groups += [
+        ("share/licenses/rustc", ctx.files.licenses),
+        ("share/licenses/llvm", [ctx.file.llvm_license]),
+    ]
     for prefix, files in groups:
         for src in files:
             if prefix == "lib" and ".so" not in src.basename:
@@ -37,20 +42,11 @@ def _distribution_impl(ctx):
             destination = prefix + "/" + basename
             if destination in destinations:
                 fail("Duplicate distribution file %s" % destination)
-            destinations[destination] = True
+            destinations.add(destination)
             args.add("--file")
             args.add(destination)
             args.add(src)
             inputs.append(src)
-    for src in ctx.files.licenses:
-        args.add("--file")
-        args.add("share/licenses/rustc/" + src.basename)
-        args.add(src)
-        inputs.append(src)
-    args.add("--file")
-    args.add("share/licenses/llvm/LICENSE.TXT")
-    args.add(ctx.file.llvm_license)
-    inputs.append(ctx.file.llvm_license)
     ctx.actions.run(
         executable = ctx.executable._packager,
         arguments = [args],
@@ -79,6 +75,10 @@ rustc_distribution = rule(
         "llvm": attr.label(default = Label("//llvm:libLLVM"), cfg = _variant),
         "stdlib": attr.label(
             default = Label("@rust_stdlib_x86_64_unknown_linux_gnu_nightly_2026_10_01//:rust_std-x86_64-unknown-linux-gnu"),
+        ),
+        "source_metadata": attr.label(
+            default = Label("@rustc_sources//src:source_metadata.json"),
+            allow_single_file = True,
         ),
         "llvm_license": attr.label(default = Label("@llvm-project//llvm:LICENSE.TXT"), allow_single_file = True),
         "licenses": attr.label(default = Label("@rustc_sources//src:licenses")),

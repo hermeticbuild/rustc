@@ -6,14 +6,17 @@ compiler sizes, and raw measurements for the initial two distributions.
 `compare.py` measures compiler startup and three compilation configurations for
 each self-contained Rust fixture: frontend metadata, debug object code, and
 optimized object code. The fixtures exercise generic iterators, collections and
-graph algorithms, and const-generic numerical kernels. Object generation excludes
+graph algorithms, and const-generic numerical kernels. Two additional cases compile
+a consumer containing 64 eight-field `WireRecord` derives: frontend metadata and
+debug object code. Each compiler builds the same procedural-macro source once
+before timing; timed consumer compilations include loading and executing the macro. Object generation excludes
 the external linker. These synthetic workloads do not predict every Cargo build.
 
 Build and validate both distributions before benchmarking:
 
 ```sh
 bazel build --features=thin_lto //:upstream_distribution //:static_distribution
-bazel test --features=thin_lto //tests:upstream_distribution_test //tests:static_distribution_test
+bazel test --features=thin_lto //tests/...
 ```
 
 After both validation tests pass, `//benchmarks:results` runs all measurements in
@@ -23,8 +26,12 @@ one Linux x86-64 action and writes `bazel-bin/benchmarks/results.json`:
 bazel build --config=remote --features=thin_lto //benchmarks:results
 ```
 
-The benchmark target is manual, requires `thin_lto`, records the requested Bazel
-features, and bypasses action caching. It permits up to one hour for the benchmark
+To run only the two procedural-macro cases, use `//benchmarks:proc_macro_results`.
+The standalone script also accepts repeated `--workload NAME` arguments to select
+exact workload names. The default is all 12 workloads.
+
+The benchmark targets are manual, require `thin_lto`, record the requested Bazel
+features, and bypass action caching. Each permits up to one hour for the benchmark
 action. Build records are still needed to confirm the compiler LTO implementation.
 
 Run the benchmark on a quiet Linux x86-64 machine using the distribution directories
@@ -60,8 +67,7 @@ memory improvement.
 
 Record each compiler's actual LTO configuration. If the variants use different
 LTO implementations, the results compare the complete compiler configurations;
-they do not isolate linkage as the cause of a difference. No measurements are
-checked in until both distributions have actually been built and benchmarked.
+they do not isolate linkage as the cause of a difference. Measurements are checked in only after both distributions pass validation.
 
 `static` describes linking Rust compiler code and LLVM into `bin/rustc`.
 The current distribution uses dynamic glibc. It is not a fully static ELF binary.

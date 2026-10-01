@@ -1,20 +1,7 @@
 load("@rules_python//python:defs.bzl", "py_binary")
-load(":runtime_info.bzl", "runtime_info")
 
 py_binary(
     name = "package",
     srcs = ["package.py"],
-    visibility = ["//visibility:public"],
-)
-
-py_binary(
-    name = "runtime_info_tool",
-    srcs = ["runtime_info.py"],
-    main = "runtime_info.py",
-)
-
-runtime_info(
-    name = "runtime_info",
-    tags = ["manual"],
     visibility = ["//visibility:public"],
 )

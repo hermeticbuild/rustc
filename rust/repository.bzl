@@ -252,7 +252,7 @@ def _generate_build_files(rctx, metadata):
     }
     repo_root = normalize_path(rctx.path(_SOURCE_ROOT))
     workspace_toml = run_toml2json(rctx, paths.join(_SOURCE_ROOT, "Cargo.toml"))
-    package_keys = {(package["name"], package["version"]): True for package in metadata["packages"]}
+    package_keys = set([(package["name"], package["version"]) for package in metadata["packages"]])
     lock_packages = [
         package
         for package in run_toml2json(rctx, paths.join(_SOURCE_ROOT, "Cargo.lock"))["package"]

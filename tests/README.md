@@ -29,3 +29,9 @@ versions in its JSON output. Unrecognized `GLIBC_` requirements, including priva
 glibc interfaces and newer ABI markers, fail compatibility validation.
 Runtime checks validate compiler behavior and reported identity. Bazel build
 inputs and build records establish construction from the pinned source commits.
+
+Run all distribution and [procedural-macro tests](proc_macro/README.md) with:
+
+```sh
+bazel test //tests/... --features=thin_lto --config=remote
+```

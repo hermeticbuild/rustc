@@ -17,6 +17,17 @@ _COMPILE_DATA_EXCLUDES = [
     "WORKSPACE.bazel",
 ]
 
+_RUST_THIN_LTO_FLAGS = select({
+    "@rustc//:thin_lto": ["-Zdylib-lto", "-Clto=thin", "-Cembed-bitcode=yes"],
+    "//conditions:default": [],
+})
+
+_RUST_LINK_FEATURES = [
+    "-runtime_library_search_directories",
+    "-runtime_library_search_directories_workaround",
+    "-thin_lto",
+]
+
 def _compiler_env(env):
     # cargo_build_script copies this dictionary during macro evaluation, so it
     # cannot contain select(). The supported compiler host is Linux x86_64.
@@ -60,14 +71,7 @@ def _rustc_driver(name, kwargs):
         version = kwargs["version"],
         rustc_env = kwargs["rustc_env"],
         rustc_env_files = ["cargo_toml_env_vars.env"],
-        rustc_flags = kwargs["rustc_flags"] + ["--cap-lints=allow"] + select({
-            "@rustc//:thin_lto": [
-                "-Zdylib-lto",
-                "-Clto=thin",
-                "-Cembed-bitcode=yes",
-            ],
-            "//conditions:default": [],
-        }) + select({
+        rustc_flags = kwargs["rustc_flags"] + ["--cap-lints=allow"] + _RUST_THIN_LTO_FLAGS + select({
             "@platforms//os:linux": ["-Clink-arg=-Wl,-rpath,$$ORIGIN"],
             "//conditions:default": [],
         }),
@@ -77,11 +81,7 @@ def _rustc_driver(name, kwargs):
         cc_runtime_linkage = "static",
         # rustc generates the dylib metadata, export list, and dependency map
         # during its link action. cc_common.link cannot reproduce those outputs.
-        features = [
-            "-runtime_library_search_directories",
-            "-runtime_library_search_directories_workaround",
-            "-thin_lto",
-        ],
+        features = _RUST_LINK_FEATURES,
         package_metadata = [":" + static_name + "_package_metadata"],
         skip_deps_verification = kwargs.get("skip_deps_verification", False),
         skip_per_crate_rustc_flags = True,
@@ -131,25 +131,14 @@ def _rustc_main(name, kwargs):
         version = kwargs["version"],
         rustc_env = kwargs["rustc_env"],
         rustc_env_files = ["cargo_toml_env_vars.env"],
-        rustc_flags = kwargs["rustc_flags"] + ["--cap-lints=allow"] + select({
-            "@rustc//:thin_lto": [
-                "-Zdylib-lto",
-                "-Clto=thin",
-                "-Cembed-bitcode=yes",
-            ],
-            "//conditions:default": [],
-        }) + select({
+        rustc_flags = kwargs["rustc_flags"] + ["--cap-lints=allow"] + _RUST_THIN_LTO_FLAGS + select({
             "@platforms//os:linux": ["-Clink-arg=-Wl,-rpath,$$ORIGIN/../lib"],
             "//conditions:default": [],
         }),
         # rustc_private tells rustc that rustc_driver already contains std and
         # its compiler crates. Both distributions use rustc for their final
         # link and ThinLTO; LLVM still uses the C++ toolchain's ThinLTO.
-        features = [
-            "-runtime_library_search_directories",
-            "-runtime_library_search_directories_workaround",
-            "-thin_lto",
-        ],
+        features = _RUST_LINK_FEATURES,
         experimental_use_cc_common_link = 0,
         package_metadata = [":" + name + "_package_metadata"],
         skip_deps_verification = kwargs.get("skip_deps_verification", False),
@@ -165,12 +154,6 @@ def _rustc_main(name, kwargs):
             actual = ":rustc",
             visibility = ["//visibility:public"],
         )
-
-    native.filegroup(
-        name = "rustc_distribution_files",
-        srcs = [":rustc"],
-        visibility = ["//visibility:public"],
-    )
 
 def rust_crate(name, **kwargs):
     """Declare one generated Cargo package, preserving rules_rs attributes."""

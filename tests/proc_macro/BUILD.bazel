@@ -1,0 +1,25 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+[
+    py_test(
+        name = name + "_test",
+        size = "medium",
+        srcs = ["integration_test.py"],
+        args = [
+            "--archive",
+            "$(location //:" + variant + "_archive)",
+        ],
+        data = ["//:" + variant + "_archive"] + glob(["fixtures/*.rs"]),
+        main = "integration_test.py",
+        target_compatible_with = [
+            "@platforms//cpu:x86_64",
+            "@platforms//os:linux",
+        ],
+    )
+    for name, variant in [
+        ("upstream", "upstream"),
+        ("monolithic", "static"),
+    ]
+]

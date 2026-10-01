@@ -12,10 +12,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--archive", required=True, type=Path)
+    parser.add_argument("--source-metadata", required=True, type=Path)
     parser.add_argument("--variant", required=True, choices=("upstream", "static"))
     parser.add_argument("--feature", action="append", default=[])
     parser.add_argument("--file", nargs=2, action="append", default=[])
     args = parser.parse_args()
+    source_metadata = json.loads(args.source_metadata.read_text())
+    bootstrap = "nightly/" + source_metadata["nightly"]
     args.directory.mkdir(parents=True, exist_ok=True)
     for destination, source in args.file:
         relative = Path(destination)
@@ -27,12 +30,12 @@ def main():
         output.chmod(0o755 if relative.parts[0] == "bin" else 0o644)
     (args.directory / "manifest.json").write_text(json.dumps({
         "variant": args.variant,
-        "rust_commit": "21b707e3f97e0b522ebd2f277a862339625ad83f",
-        "llvm_commit": "1b9c0d5ff9bbe7634aead059efe6b11a7eeba145",
-        "nightly": "2026-10-01",
+        "rust_commit": source_metadata["rust_commit"],
+        "llvm_commit": source_metadata["llvm_commit"],
+        "nightly": source_metadata["nightly"],
         "host": "x86_64-unknown-linux-gnu",
-        "bootstrap": "nightly/2026-10-01",
-        "stdlib": "upstream nightly/2026-10-01",
+        "bootstrap": bootstrap,
+        "stdlib": "upstream " + bootstrap,
         "allocator": "system",
         "glibc": "dynamic",
         "build_features": sorted(args.feature),
