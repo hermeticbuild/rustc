@@ -25,10 +25,10 @@ VARIANTS = ("upstream", "static")
 
 
 def clean_environment():
-    env = os.environ.copy()
-    for key in list(env):
-        if key.startswith(("LD_", "DYLD_", "RUST", "CARGO")):
-            del env[key]
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith(("LD_", "DYLD_", "RUST", "CARGO"))
+    }
     env["LC_ALL"] = "C"
     return env
 

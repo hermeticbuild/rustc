@@ -36,10 +36,10 @@ def tool_path(name):
 
 
 def clean_environment():
-    env = os.environ.copy()
-    for key in list(env):
-        if key.startswith(("LD_", "DYLD_", "RUST", "CARGO")):
-            del env[key]
+    env = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith(("LD_", "DYLD_", "RUST", "CARGO"))
+    }
     env["LC_ALL"] = "C"
     return env
 
@@ -145,7 +145,10 @@ def elf_info(path, distribution, *, readelf, cwd, env, timeout):
 
 def inspect_elf(distribution, variant, *, readelf, cwd, env, timeout):
     inspected = {}
+    compiler_libraries = []
     for path in sorted(distribution.rglob("*")):
+        if COMPILER_LIBRARY.match(path.name):
+            compiler_libraries.append(path)
         if path.is_file():
             with path.open("rb") as stream:
                 is_elf = stream.read(4) == b"\x7fELF"
@@ -155,9 +158,6 @@ def inspect_elf(distribution, variant, *, readelf, cwd, env, timeout):
                 )
     require("bin/rustc" in inspected, "bin/rustc is not an ELF binary")
     compiler_dependencies = inspected["bin/rustc"]["needed"]
-    compiler_libraries = [
-        path for path in distribution.rglob("*") if COMPILER_LIBRARY.match(path.name)
-    ]
     all_dependencies = [name for info in inspected.values() for name in info["needed"]]
     if variant == "static":
         require(
@@ -382,7 +382,7 @@ def validate(args):
         require(diagnostic.returncode == 1, f"Unexpected diagnostic exit code: {diagnostic.returncode}")
         diagnostics = [json.loads(line) for line in diagnostic.stderr.splitlines() if line.startswith("{")]
         require(
-            any(item.get("code", {}).get("code") == "E0308" for item in diagnostics if item.get("code")),
+            any(item["code"].get("code") == "E0308" for item in diagnostics if item.get("code")),
             f"Expected E0308 diagnostic is missing: {diagnostic.stderr}",
         )
         print("PASS type-error diagnostic", flush=True)

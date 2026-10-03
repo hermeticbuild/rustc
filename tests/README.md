@@ -13,11 +13,11 @@ The compiler receives the selected C linker driver with `-C linker=...`.
 
 The script copies the distribution to a temporary directory and checks contained
 symlinks, ELF dependencies and search paths, the manifest's Rust and LLVM commits,
-the reported compiler commit, implicit
-sysroot discovery, allocation, threads, panic unwinding, filesystem access,
-libtest, proc-macro creation and use, LLVM IR, native object code, and a type-error
-diagnostic. Runtime examples compile at both optimization levels 0 and 2. Loader
-and Rust/Cargo environment overrides are removed during validation.
+the reported compiler commit, implicit sysroot discovery, allocation, threads,
+panic unwinding, filesystem access, libtest, proc-macro creation and use, LLVM IR,
+native object code, and a type-error diagnostic. Runtime examples compile at
+both optimization levels 0 and 2. Loader and Rust/Cargo environment overrides are
+removed during validation.
 
 The upstream variant must ship and use `librustc_driver` and `libLLVM`; the static
 variant must have neither shared-library dependency. The static variant may use
